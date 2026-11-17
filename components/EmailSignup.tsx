@@ -21,7 +21,7 @@ export function EmailSignup({ source }: { source: string }) {
       <h2 className="text-3xl">Waiver picks, every Tuesday</h2>
       <p className="mt-1.5 max-w-prose text-mute">The top pickups for the week and why, in your inbox before waivers run. Free, and one click to unsubscribe.</p>
       {state === "done" ? (
-        <p className="mt-4 font-semibold text-gold">You&apos;re on the list. The first one arrives Tuesday.</p>
+        <p className="mt-4 font-semibold text-gold">You&apos;re on the list. Picks arrive Tuesday mornings.</p>
       ) : (
         <form onSubmit={submit} className="mt-4 flex flex-wrap gap-2">
           <label htmlFor={`email-${source}`} className="sr-only">Email address</label>
