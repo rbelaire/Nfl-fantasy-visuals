@@ -12,6 +12,7 @@ NFL fantasy performances, visualized. Look up any quarterback, running back, rec
 - **Points allowed** (`/defense`): a heat map of what every defense gives up to each position, week by week, with next week's opponents.
 - **Workload watch** (home page): buy-low and sell-high lists comparing each player's last 3 games with what his targets and carries usually earn. Snap share comes from nflverse snap counts.
 - **Share images**: every page has a downloadable image that also shows as the link preview (`/api/og/week`, `/api/og/compare`, `/api/og/tiers`, `/api/og/defense`, `/api/card/[id]`).
+- **Who should I pick up?** (`/waivers`): likely-free players ranked for next week with plain-language reasons. Visitors mark players taken in their league (saved in the browser) and the list re-ranks.
 - **Who should I start?** (`/start?p=id,id,id`): two or three players for next week, with a lean built from the last 3 games, what that workload usually earns, the season average and the opponent's points allowed. Every input is shown.
 - **Daily guess** (`/guess`): name the mystery player from his heartbeat. Same player for everyone each day, with puzzle numbers, streaks, win stats and a result grid to paste into a group chat. History stays in the visitor's browser.
 - **Analytics**: Vercel Web Analytics (`@vercel/analytics`). Turn it on under the project's Analytics tab in Vercel.
