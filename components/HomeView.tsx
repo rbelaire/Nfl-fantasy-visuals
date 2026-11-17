@@ -12,6 +12,7 @@ import { Heartbeat, toBeats } from "./Heartbeat";
 import { Jersey } from "./Jersey";
 
 const TOOLS = [
+  { href: "/start", name: "Who should I start?", text: "Two or three players, next week's matchups, and a lean you can see the reasons for." },
   { href: "/compare", name: "Compare two players", text: "A tale of the tape for start-or-sit calls and trade talks." },
   { href: "/tiers", name: "Tier skyline", text: "Every position as a city skyline, with the drop-offs between tiers marked." },
   { href: "/defense", name: "Points allowed", text: "A heat map of what every defense gives up to each position, with next week's matchups." },

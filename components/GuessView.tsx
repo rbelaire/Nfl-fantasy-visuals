@@ -6,6 +6,7 @@ import { pts } from "@/lib/scoring";
 import { team } from "@/lib/teams";
 import { useSeason } from "@/lib/useSeason";
 import { useStored } from "@/lib/useStored";
+import { dayKey, parseLog, puzzleNumber, stats } from "@/lib/guessStats";
 import { useFmt } from "./Scoring";
 import { PlayerSearch } from "./PlayerSearch";
 import { Heartbeat, toBeats } from "./Heartbeat";
@@ -15,7 +16,7 @@ import { Section } from "./PlayerView";
 const MAX = 6;
 const noop = () => () => {};
 const POOL: Record<string, number> = { QB: 20, RB: 30, WR: 35, TE: 15 };
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const today = () => dayKey(new Date());
 const hash = (s: string) => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 
 export function GuessView() {
@@ -25,12 +26,18 @@ export function GuessView() {
   const [stored, store] = useStored(`guess-${day}`, "");
   const ids = useMemo(() => (stored ? stored.split(",") : []), [stored]);
   const [copied, setCopied] = useState(false);
+  // The answer is locked in on the first guess, so a mid-day data refresh can't swap it.
+  const [locked, lock] = useStored(`guess-answer-${day}`, "");
+  const [rawLog, saveLog] = useStored("guess-log", "{}");
+  const log = useMemo(() => parseLog(rawLog), [rawLog]);
 
   const answer = useMemo(() => {
     if (!data || !day) return null;
+    const kept = locked && data.players.find((p) => p.id === locked);
+    if (kept) return kept;
     const pool = data.players.filter((p) => p.rk[1] <= POOL[p.pos] && p.g.length >= 4).sort((a, b) => a.id.localeCompare(b.id));
     return pool[hash(day) % pool.length];
-  }, [data, day]);
+  }, [data, day, locked]);
 
   if (!data || !answer) return <p className="py-10 text-mute">{error ? "Player data did not load. Refresh the page to try again." : "Loading today's player…"}</p>;
 
@@ -39,8 +46,14 @@ export function GuessView() {
   const done = won || guesses.length >= MAX;
   const t = team(answer.team);
   const guess = (p: Player) => {
-    store([...ids, p.id].join(","));
+    if (!locked) lock(answer.id);
+    const next = [...ids, p.id];
+    store(next.join(","));
+    const hit = p.id === answer.id;
+    if (hit || next.length >= MAX) saveLog(JSON.stringify({ ...log, [day]: hit ? next.length : 0 }));
   };
+  const s = stats(log, day, MAX);
+  const num = puzzleNumber(day);
   const checks = (g: Player) => {
     const gt = team(g.team);
     return [
@@ -58,13 +71,19 @@ export function GuessView() {
   ].filter(Boolean) as string[];
   const share = async () => {
     const grid = guesses.map((g) => checks(g).map((c) => (c.ok ? "🟩" : "⬛")).join("")).join("\n");
-    const text = `Fantasy Pulse daily guess ${day}: ${won ? guesses.length : "X"}/${MAX}\n${grid}`;
+    const streak = s.cur > 1 ? `\n🔥 ${s.cur}-day streak` : "";
+    const text = `Fantasy Pulse #${num}: ${won ? guesses.length : "X"}/${MAX}\n${grid}${streak}\n${window.location.origin}/guess`;
     try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
   };
 
   return (
     <div className="space-y-5">
-      <h1 className="text-5xl sm:text-6xl">Whose pulse is this?</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className="text-5xl sm:text-6xl">Whose pulse is this?</h1>
+        <p className="stat text-mute">
+          Puzzle #{num}{s.cur > 0 && <> · <span className="font-semibold text-gold">{s.cur}-day streak</span></>}
+        </p>
+      </div>
       <p className="max-w-prose text-mute">
         One mystery player a day, drawn from the top scorers at each position. You get {MAX} guesses. Each miss shows what you got right and unlocks a hint.
       </p>
@@ -87,8 +106,9 @@ export function GuessView() {
           <p className="mt-1 text-mute">{answer.pos}, {t.name}</p>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link href={`/player/${answer.id}`} className="rounded-md bg-gold px-4 py-2 font-semibold text-field">See his full season</Link>
-            <button type="button" onClick={share} className="rounded-md border border-rule px-4 py-2 font-semibold">{copied ? "Copied" : "Copy result"}</button>
+            <button type="button" onClick={share} className="rounded-md border border-rule px-4 py-2 font-semibold">{copied ? "Copied" : "Copy result to share"}</button>
           </div>
+          <Stats s={s} max={MAX} today={won ? guesses.length : 0} />
           <p className="mt-4 text-sm text-dim">A new player arrives at midnight.</p>
         </div>
       )}
@@ -125,6 +145,36 @@ export function GuessView() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function Stats({ s, max, today }: { s: ReturnType<typeof stats>; max: number; today: number }) {
+  const top = Math.max(1, ...s.dist);
+  const tiles = [["Played", s.played], ["Win %", s.winPct], ["Streak", s.cur], ["Best streak", s.best]] as const;
+  return (
+    <div className="mt-5 border-t border-rule pt-4">
+      <dl className="grid grid-cols-4 gap-2 text-center">
+        {tiles.map(([k, v]) => (
+          <div key={k}>
+            <dd className="display text-4xl">{v}</dd>
+            <dt className="text-xs text-mute">{k}</dt>
+          </div>
+        ))}
+      </dl>
+      <h3 className="mt-4 text-lg">Guesses to win</h3>
+      <ol className="mt-2 space-y-1">
+        {s.dist.map((n, i) => (
+          <li key={i} className="flex items-center gap-2 text-sm">
+            <span className="stat w-3 text-mute">{i + 1}</span>
+            <span
+              className={`stat flex h-6 min-w-7 items-center justify-end rounded px-2 font-semibold ${today === i + 1 ? "bg-gold text-field" : "bg-raised"}`}
+              style={{ width: `${Math.max(8, (n / top) * 100)}%` }}
+            >{n}</span>
+          </li>
+        ))}
+      </ol>
+      {max > 0 && s.played > s.wins && <p className="mt-2 text-sm text-dim">Missed: {s.played - s.wins}</p>}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { ScoringProvider } from "@/components/Scoring";
+import { Analytics } from "@vercel/analytics/next";
 import { season } from "@/lib/data";
 
 const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             Not affiliated with the NFL or any team.
           </footer>
         </ScoringProvider>
+        <Analytics />
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import { PlayerSearch } from "./PlayerSearch";
 import { ScoringToggle } from "./Scoring";
 
 const NAV = [
+  { href: "/start", label: "Start or sit" },
   { href: "/compare", label: "Compare" },
   { href: "/tiers", label: "Tiers" },
   { href: "/defense", label: "Defenses" },
