@@ -18,6 +18,8 @@ export interface Game {
 export interface Player {
   id: string; name: string; pos: Pos; team: string;
   num: number | null; college: string | null; exp: number | null;
+  /** Sleeper player id, for matching league rosters */
+  sl: string | null;
   g: Game[];
   /** season positional rank by total points, per scoring format */
   rk: [number, number, number];

@@ -12,6 +12,7 @@ import { PlayerSearch } from "./PlayerSearch";
 import { Jersey } from "./Jersey";
 import { Heartbeat, toBeats } from "./Heartbeat";
 import { ShareBar } from "./ShareBar";
+import { useLeague } from "@/lib/useLeague";
 
 const MAX = 3;
 
@@ -22,6 +23,7 @@ export function StartView() {
   const router = useRouter();
   const ids = (params.get("p") ?? "").split(",").filter(Boolean).slice(0, MAX);
   const values = useMemo(() => (data ? touchValues(data.players, fmt) : null), [data, fmt]);
+  const { league, mine } = useLeague(data);
   if (!data || !values) return <p className="py-10 text-mute">{error ? "Player data did not load. Refresh the page to try again." : "Loading players…"}</p>;
 
   const players = ids.map((id) => data.players.find((p) => p.id === id)).filter((p): p is Player => !!p);
@@ -43,6 +45,18 @@ export function StartView() {
         <div className="panel max-w-xl p-4">
           <label className="mb-2 block font-medium">{players.length ? "Add another player" : "Add a player"}</label>
           <PlayerSearch placeholder="Type a player's name" exclude={ids} onPick={(p) => go([...ids, p.id])} />
+          {league && mine.length > 0 && (
+            <div className="mt-3">
+              <p className="mb-1.5 text-sm text-mute">Or tap one of yours:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[...mine].filter((p) => !ids.includes(p.id)).sort((a, b) => "QBRBWRTE".indexOf(a.pos) - "QBRBWRTE".indexOf(b.pos) || a.rk[fmt] - b.rk[fmt]).map((p) => (
+                  <button key={p.id} type="button" onClick={() => go([...ids, p.id])} className="rounded-full border border-rule px-3 py-1 text-sm hover:border-gold">
+                    <span className="stat text-dim">{p.pos}</span> {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

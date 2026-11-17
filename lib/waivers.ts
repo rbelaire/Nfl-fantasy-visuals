@@ -22,14 +22,14 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 const f1 = (v: number) => v.toFixed(1);
 
 /** Likely-available players ranked by how much they are worth adding right now. */
-export function waiverPicks(data: Season, f: Fmt, leagueSize = 12): Pickup[] {
+export function waiverPicks(data: Season, f: Fmt, leagueSize = 12, rostered: Set<string> | null = null): Pickup[] {
   const cut = ROSTERED[leagueSize] ?? ROSTERED[12];
   const values = touchValues(data.players, f);
   const tables = {} as Record<Pos, ReturnType<typeof defenseTable>>;
   const teams = Object.keys(data.defense).length;
   const out: Pickup[] = [];
   for (const p of data.players) {
-    if (p.rk[f] <= cut[p.pos]) continue;
+    if (rostered ? rostered.has(p.id) : p.rk[f] <= cut[p.pos]) continue;
     if (!p.g.some((g) => g.w >= data.week - 1)) continue; // must have played in the last two weeks
     const now = p.g.slice(-2), before = p.g.slice(0, -2);
     const recent = avg(now.map((g) => pts(g, f)));

@@ -21,6 +21,15 @@ async function main() {
     download(`${BASE}/snap_counts/snap_counts_${SEASON}.csv`).catch(() => ""),
     download(`${BASE}/schedules/games.csv`).catch(() => ""),
   ]);
+  // Sleeper player ids, so a visitor's Sleeper league can be matched to these players.
+  let sleeperIds = new Map();
+  try {
+    const ids = parseCsv(await download("https://raw.githubusercontent.com/dynastyprocess/data/master/files/db_playerids.csv"));
+    sleeperIds = new Map(ids.filter((x) => x.gsis_id && x.gsis_id !== "NA" && x.sleeper_id && x.sleeper_id !== "NA").map((x) => [x.gsis_id, x.sleeper_id]));
+  } catch {
+    if (existsSync(OUT)) for (const p of JSON.parse(readFileSync(OUT, "utf8")).players) if (p.sl) sleeperIds.set(p.id, p.sl);
+    console.warn("Sleeper id list unavailable; reusing ids from the existing snapshot.");
+  }
   const people = parseCsv(playersCsv);
   const bio = new Map(people.map((p) => [p.gsis_id, p]));
   // Snap counts use Pro Football Reference ids; map them to the stats ids.
@@ -82,6 +91,7 @@ async function main() {
     return {
       id: p.id, name: p.name, pos: p.pos, team: p.g[p.g.length - 1].tm,
       num: b.jersey_number ? Number(b.jersey_number) : null,
+      sl: sleeperIds.get(p.id) ?? null,
       college: b.college_name ? b.college_name.split(";")[0].trim() : null,
       exp: b.rookie_season ? SEASON - Number(b.rookie_season) : null,
       g: p.g.map((g) => ({ ...g, tm: undefined })),

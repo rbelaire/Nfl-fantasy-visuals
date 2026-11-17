@@ -4,6 +4,7 @@ import type { Player } from "@/lib/types";
 import { FMT_KEY, fmt1, pts, total } from "@/lib/scoring";
 import { weekSummary } from "@/lib/week";
 import { ShareBar } from "./ShareBar";
+import { EmailSignup } from "./EmailSignup";
 import { team } from "@/lib/teams";
 import { useSeason } from "@/lib/useSeason";
 import { useFmt } from "./Scoring";
@@ -118,6 +119,8 @@ export function HomeView() {
           <p className="mt-2 text-sm text-dim">The number is points per game above or below what that workload usually earns.</p>
         </section>
       )}
+
+      <EmailSignup source="home" />
 
       <section>
         <h2 className="text-4xl">More ways to look</h2>

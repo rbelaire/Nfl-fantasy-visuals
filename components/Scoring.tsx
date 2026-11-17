@@ -6,6 +6,7 @@ import { useStored } from "@/lib/useStored";
 
 const Ctx = createContext<{ fmt: Fmt; setFmt: (f: Fmt) => void }>({ fmt: 1, setFmt: () => {} });
 export const useFmt = () => useContext(Ctx).fmt;
+export const useSetFmt = () => useContext(Ctx).setFmt;
 
 export function ScoringProvider({ children }: { children: React.ReactNode }) {
   const [saved, save] = useStored("fmt", "1");
