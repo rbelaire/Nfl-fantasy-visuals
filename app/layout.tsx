@@ -5,7 +5,8 @@ import { ScoringProvider } from "@/components/Scoring";
 import { Analytics } from "@vercel/analytics/next";
 import { season } from "@/lib/data";
 
-const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+// Production always uses the real domain, so shared links and preview images point there.
+const host = process.env.VERCEL_ENV === "production" ? "fantasypulse.pro" : process.env.VERCEL_URL;
 
 export const metadata: Metadata = {
   metadataBase: new URL(host ? `https://${host}` : "http://localhost:3000"),
