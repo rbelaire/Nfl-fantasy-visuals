@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useWidth } from "@/lib/useWidth";
 import { fmt1 } from "@/lib/scoring";
 
-export interface Beat { w: number; v: number | null; tip?: string }
+export interface Beat { w: number; v: number | null; tip?: string; sn?: number | null }
 
 const niceMax = (v: number) => {
   const step = v > 40 ? 20 : v > 20 ? 10 : 5;
@@ -15,8 +15,9 @@ const niceMax = (v: number) => {
  * The gold dashed line is the "starter line", the score a startable player averages.
  */
 export function Heartbeat({
-  beats, line, lineLabel, height = 240, color = "var(--color-chalk)", compact = false, animate = true,
-}: { beats: Beat[]; line?: number; lineLabel?: string; height?: number; color?: string; compact?: boolean; animate?: boolean }) {
+  beats, line, lineLabel, height = 240, color = "var(--color-chalk)", compact = false, animate = true, snaps = false,
+}: { beats: Beat[]; line?: number; lineLabel?: string; height?: number; color?: string; compact?: boolean; animate?: boolean; snaps?: boolean }) {
+  const band = snaps && !compact ? 40 : 0;
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const m = compact ? { t: 10, r: 6, b: 6, l: 6 } : { t: 22, r: 12, b: 26, l: 30 };
@@ -52,9 +53,9 @@ export function Heartbeat({
 
   return (
     <div>
-    <div ref={ref} className="relative w-full select-none" style={{ height }}>
+    <div ref={ref} className="relative w-full select-none" style={{ height: height + band }}>
       <svg
-        width={width} height={height} role="img"
+        width={width} height={height + band} role="img"
         aria-label={`Weekly fantasy points. Best week: ${best ? `${fmt1(best.v!)} in week ${best.w}` : "none"}.`}
         onPointerMove={(e) => {
           const box = e.currentTarget.getBoundingClientRect();
@@ -78,6 +79,17 @@ export function Heartbeat({
         {line != null && (
           <g>
             <line x1={m.l} x2={m.l + iw} y1={y(line)} y2={y(line)} stroke="var(--color-gold)" strokeWidth={1.5} strokeDasharray="5 5" opacity={0.85} />
+          </g>
+        )}
+        {band > 0 && (
+          <g>
+            <text x={0} y={height + 10} fontSize={11} fill="var(--color-dim)">Snap %</text>
+            {beats.map((b, i) => b.sn != null && (
+              <g key={b.w}>
+                <rect x={x(i) - Math.min(14, step * 0.3)} width={Math.min(28, step * 0.6)} y={height + band - 4 - (b.sn / 100) * 22} height={Math.max(1, (b.sn / 100) * 22)} rx={2} fill="var(--series-1)" opacity={hover === i ? 1 : 0.75} />
+                {(hover === i || step > 44) && <text x={x(i)} y={height + band - 8 - (b.sn / 100) * 22} textAnchor="middle" className="stat" fontSize={10} fill="var(--color-mute)">{b.sn}</text>}
+              </g>
+            ))}
           </g>
         )}
         {hover != null && <line x1={x(hover)} x2={x(hover)} y1={m.t} y2={m.t + ih} stroke="var(--color-dim)" strokeWidth={1} />}
@@ -104,6 +116,7 @@ export function Heartbeat({
         <div className="tip" style={{ left: Math.min(Math.max(x(hover!), 70), width - 70), top: (h.v != null ? y(Math.max(h.v, 0)) : y0) - 12 }}>
           <div className="text-mute">Week {h.w}{h.tip ? ` ${h.tip}` : ""}</div>
           <div className="stat font-semibold">{h.v != null ? `${fmt1(h.v)} points` : "Did not play"}</div>
+          {band > 0 && h.sn != null && <div className="stat text-mute">{h.sn}% of snaps</div>}
         </div>
       )}
     </div>
@@ -114,6 +127,7 @@ export function Heartbeat({
           {lineLabel} ({fmt1(line)})
         </li>
         <li className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-gold" />Week above the line</li>
+        {band > 0 && <li className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[var(--series-1)]" />Share of offensive snaps</li>}
       </ul>
     )}
     </div>
@@ -121,10 +135,10 @@ export function Heartbeat({
 }
 
 /** Fills in missed weeks so the trace flatlines where a player sat out. */
-export function toBeats(games: { w: number; v: number; tip?: string }[], weeks: number): Beat[] {
+export function toBeats(games: { w: number; v: number; tip?: string; sn?: number | null }[], weeks: number): Beat[] {
   const by = new Map(games.map((g) => [g.w, g]));
   return Array.from({ length: weeks }, (_, i) => {
     const g = by.get(i + 1);
-    return { w: i + 1, v: g ? g.v : null, tip: g?.tip };
+    return { w: i + 1, v: g ? g.v : null, tip: g?.tip, sn: g?.sn };
   });
 }

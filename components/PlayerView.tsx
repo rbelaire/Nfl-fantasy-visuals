@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import type { Player, Season } from "@/lib/types";
-import { FMT_KEY, FMT_LABEL, STARTER_RANK, archetype, fmt1, ppg, pts, rarity, total, volatility } from "@/lib/scoring";
+import { FMT_KEY, FMT_LABEL, STARTER_RANK, archetype, defenseTable, fmt1, luck, matchupLabel, ppg, pts, rarity, total, touchValues, volatility } from "@/lib/scoring";
 import { team } from "@/lib/teams";
 import { useFmt } from "./Scoring";
 import { Jersey } from "./Jersey";
@@ -10,6 +10,8 @@ import { BoomBust } from "./BoomBust";
 import { Anatomy } from "./Anatomy";
 import { UsageScatter } from "./UsageScatter";
 import { GameLog } from "./GameLog";
+import { Twins } from "./Twins";
+import { ShareBar } from "./ShareBar";
 
 export function Section({ title, note, children }: { title: string; note?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -21,8 +23,15 @@ export function Section({ title, note, children }: { title: string; note?: React
   );
 }
 
-export function PlayerView({ player, week, line, season }: { player: Player; week: number; line: Season["line"]; season: number }) {
+export function PlayerView({ player, week, line, season, defense, next, values, known }: {
+  player: Player; week: number; line: Season["line"]; season: number;
+  defense: Season["defense"]; next: Season["next"]; values: ReturnType<typeof touchValues>[]; known: string[];
+}) {
   const fmt = useFmt();
+  const form = luck(player, fmt, values[fmt]);
+  const table = defenseTable(defense, player.pos, fmt);
+  const nextOpp = next?.opp[player.team];
+  const nextRank = nextOpp ? table.find((r) => r.team === nextOpp.replace("@", ""))?.rank : undefined;
   const t = team(player.team);
   const starter = line[player.pos][fmt];
   const startable = player.g.filter((g) => pts(g, fmt) >= starter).length;
@@ -62,14 +71,27 @@ export function PlayerView({ player, week, line, season }: { player: Player; wee
         ))}
       </dl>
 
+      {next && (
+        <p className="panel px-4 py-3">
+          <span className="font-semibold">Week {next.week}: </span>
+          {nextOpp
+            ? <>{nextOpp.startsWith("@") ? "at" : "vs"} {team(nextOpp.replace("@", "")).name}, who {nextRank ? matchupLabel(nextRank, table.length, player.pos) : "have no games yet"}. <Link href={`/defense?pos=${player.pos}`} className="text-gold underline underline-offset-4">See every matchup</Link></>
+            : "bye week."}
+        </p>
+      )}
+
       <Section
         title="Season heartbeat"
         note={<>One spike per week of {FMT_LABEL[fmt]} points. Gold dots cleared the starter line, the score the {cutoff} averages each week ({fmt1(starter)}). A flat stretch is a week he did not play.</>}
       >
         <Heartbeat
-          beats={toBeats(player.g.map((g) => ({ w: g.w, v: pts(g, fmt), tip: `vs ${g.opp}` })), week)}
-          line={starter} lineLabel="Starter line"
+          beats={toBeats(player.g.map((g) => ({ w: g.w, v: pts(g, fmt), tip: `vs ${g.opp}`, sn: g.sn })), week)}
+          line={starter} lineLabel="Starter line" snaps
         />
+      </Section>
+
+      <Section title="Heartbeat twins" note="Past seasons whose opening stretch looked most like this one, and where they went from here.">
+        <Twins player={player} fmt={fmt} known={new Set(known)} />
       </Section>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -83,15 +105,22 @@ export function PlayerView({ player, week, line, season }: { player: Player; wee
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <Section title="Workload against output" note="One dot per week. Dots low and to the right are busy weeks that did not pay off, often a sign of better days ahead.">
+          {form && (
+            <p className="mb-3">
+              Over his last 3 games he averaged <span className="stat font-semibold">{fmt1(form.touches)}</span> targets and carries
+              {form.snap != null && <> on <span className="stat font-semibold">{Math.round(form.snap)}%</span> of snaps</>}.
+              That work usually earns a {player.pos} <span className="stat font-semibold">{fmt1(form.expected)}</span> points; he scored{" "}
+              <span className="stat font-semibold">{fmt1(form.actual)}</span>.{" "}
+              {form.diff <= -3 ? "The role is there and the points have lagged, a classic buy-low sign." : form.diff >= 3 ? "He is outscoring his workload, which big plays and touchdowns rarely sustain." : "His points match his workload."}
+            </p>
+          )}
           <UsageScatter player={player} fmt={fmt} />
         </Section>
         <Section title="Trading card" note="Save it and drop it in the group chat.">
           <div className="flex flex-col items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={cardUrl} alt={`${player.name} trading card`} width={300} height={420} loading="lazy" className="rounded-xl" />
-            <a href={cardUrl} download={`${player.name.replace(/[^A-Za-z]+/g, "-").toLowerCase()}-${season}-card.png`} className="rounded-md bg-gold px-4 py-2 font-semibold text-field">
-              Download card
-            </a>
+            <ShareBar image={cardUrl} file={`${player.name.replace(/[^A-Za-z]+/g, "-").toLowerCase()}-${season}-card.png`} label="Download card" />
           </div>
         </Section>
       </div>

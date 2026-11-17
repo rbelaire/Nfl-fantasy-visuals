@@ -1,6 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { fonts } from "@/lib/og";
 import type { NextRequest } from "next/server";
 import { playerById, season } from "@/lib/data";
 import { ANATOMY_PARTS, FMT_LABEL, anatomy, archetype, fmt1, parseFmt, ppg, pts, rarity, total } from "@/lib/scoring";
@@ -8,7 +7,6 @@ import { team } from "@/lib/teams";
 
 const W = 600, H = 840;
 const SERIES = ["#4a94ee", "#e0632f", "#1fae7c", "#c98500", "#dc5f8d"];
-const font = (file: string) => readFile(join(process.cwd(), "assets/fonts", file));
 
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/card/[id]">) {
   const { id } = await ctx.params;
@@ -16,7 +14,6 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/card/[id]">)
   if (!p) return new Response("No such player", { status: 404 });
   const f = parseFmt(req.nextUrl.searchParams.get("s"));
   const t = team(p.team), rare = rarity(p, f);
-  const [display, body] = await Promise.all([font("BigShoulders-800.woff"), font("BarlowSemiCondensed-600.woff")]);
 
   // Heartbeat trace
   const cw = 520, ch = 130, weeks = season.week, step = cw / weeks;
@@ -95,10 +92,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/card/[id]">)
     ),
     {
       width: W, height: H,
-      fonts: [
-        { name: "Shoulders", data: display, weight: 800, style: "normal" },
-        { name: "Barlow", data: body, weight: 600, style: "normal" },
-      ],
+      fonts: await fonts(),
       headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" },
     },
   );

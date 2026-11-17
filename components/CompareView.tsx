@@ -3,7 +3,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Fmt, Player, Season } from "@/lib/types";
-import { archetype, buckets, bucketCounts, fmt1, ppg, pts, total } from "@/lib/scoring";
+import { FMT_KEY, archetype, buckets, bucketCounts, fmt1, ppg, pts, total } from "@/lib/scoring";
+import { ShareBar } from "./ShareBar";
 import { team } from "@/lib/teams";
 import { useSeason } from "@/lib/useSeason";
 import { useWidth } from "@/lib/useWidth";
@@ -148,7 +149,10 @@ export function CompareView() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-5xl sm:text-6xl">Tale of the tape</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className="text-5xl sm:text-6xl">Tale of the tape</h1>
+        <ShareBar image={`/api/og/compare?a=${a.id}&b=${b.id}&s=${FMT_KEY[fmt]}`} file={`${a.name}-vs-${b.name}.png`.replace(/[^A-Za-z.]+/g, "-").toLowerCase()} />
+      </div>
       <div className="panel flex items-start gap-3 p-4 sm:gap-6 sm:p-5">
         <Corner p={a} side={0} other={b.id} onChange={(n) => go(n, b)} />
         <span className="display pt-3 text-2xl text-dim">vs</span>

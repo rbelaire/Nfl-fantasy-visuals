@@ -7,6 +7,7 @@ import { ScoringToggle } from "./Scoring";
 const NAV = [
   { href: "/compare", label: "Compare" },
   { href: "/tiers", label: "Tiers" },
+  { href: "/defense", label: "Defenses" },
   { href: "/race", label: "Race" },
   { href: "/guess", label: "Daily guess" },
 ];

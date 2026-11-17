@@ -1,4 +1,4 @@
-import type { Fmt, Game, Player, Pos } from "./types";
+import type { Fmt, Game, Player, Pos, Season } from "./types";
 
 export const FMT_LABEL = ["Standard", "Half-PPR", "PPR"] as const;
 export const FMT_KEY = ["std", "half", "ppr"] as const;
@@ -114,4 +114,58 @@ export function rarity(p: Player, f: Fmt) {
   const r = p.rk[f];
   const i = r <= Math.ceil(3 * k) ? 0 : r <= 8 * k ? 1 : r <= 16 * k ? 2 : r <= 30 * k ? 3 : 4;
   return RARITIES[i];
+}
+
+const REC = [0, 0.5, 1];
+/** Points a defense allowed to a position in one week, or null on a bye. */
+export const allowed = (c: [number, number] | null, f: Fmt) => (c ? c[0] + c[1] * REC[f] : null);
+
+/** Average points allowed per game, and each defense's rank from most generous (1) to stingiest. */
+export function defenseTable(def: Season["defense"], pos: Pos, f: Fmt) {
+  const rows = Object.entries(def).map(([team, d]) => {
+    const vals = d[pos].map((c) => allowed(c, f));
+    const played = vals.filter((v): v is number => v != null);
+    return { team, vals, avg: played.length ? played.reduce((a, b) => a + b, 0) / played.length : 0 };
+  });
+  rows.sort((a, b) => b.avg - a.avg);
+  return rows.map((r, i) => ({ ...r, rank: i + 1 }));
+}
+
+/** A matchup in words: "allows the 3rd most points to WRs". */
+export function matchupLabel(rank: number, teams: number, pos: Pos) {
+  const ord = (x: number) => x + (["th", "st", "nd", "rd"][(x % 100 - 20) % 10] || ["th", "st", "nd", "rd"][x % 100] || "th");
+  if (rank <= teams / 2) return `allows the ${rank === 1 ? "most" : `${ord(rank)} most`} points to ${pos}s`;
+  const fewest = teams - rank + 1;
+  return `allows the ${fewest === 1 ? "fewest" : `${ord(fewest)} fewest`} points to ${pos}s`;
+}
+
+/**
+ * What a workload usually earns: league-wide points per target and per carry at each position,
+ * so a player's actual points can be set against what his touches typically produce.
+ */
+export function touchValues(players: Player[], f: Fmt) {
+  const out = {} as Record<Pos, { tgt: number; car: number }>;
+  for (const pos of POSITIONS) {
+    let recPts = 0, tgt = 0, rushPts = 0, car = 0;
+    for (const p of players) if (p.pos === pos) for (const g of p.g) {
+      recPts += g.recy * 0.1 + g.rectd * 6 + g.rec * REC[f]; tgt += g.tgt;
+      rushPts += g.ry * 0.1 + g.rtd * 6; car += g.car;
+    }
+    out[pos] = { tgt: tgt ? recPts / tgt : 0, car: car ? rushPts / car : 0 };
+  }
+  return out;
+}
+export function expectedPts(g: Game, v: { tgt: number; car: number }) {
+  return g.tgt * v.tgt + g.car * v.car;
+}
+/** Over the last few games: actual points minus what the workload usually earns. */
+export function luck(p: Player, f: Fmt, v: ReturnType<typeof touchValues>, last = 3) {
+  const games = p.g.slice(-last);
+  if (p.pos === "QB" || games.length < last) return null;
+  const actual = games.reduce((t, g) => t + pts(g, f), 0) / games.length;
+  const expected = games.reduce((t, g) => t + expectedPts(g, v[p.pos]), 0) / games.length;
+  const touches = games.reduce((t, g) => t + g.tgt + g.car, 0) / games.length;
+  const snaps = games.filter((g) => g.sn != null);
+  const snap = snaps.length ? snaps.reduce((t, g) => t + g.sn!, 0) / snaps.length : null;
+  return { actual, expected, diff: actual - expected, touches, snap };
 }

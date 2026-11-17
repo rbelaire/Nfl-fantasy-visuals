@@ -1,64 +1,38 @@
-// Builds public/data/season.json from nflverse weekly player stats.
+// Builds public/data/season.json from nflverse weekly player stats, snap counts and the schedule.
 // Source: https://github.com/nflverse/nflverse-data (free, open data).
 // Run: npm run data   (SEASON=2025 npm run data for another year)
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { BASE, POSITIONS, download, n, parseCsv, r2 } from "./lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(root, "public/data/season.json");
-const BASE = "https://github.com/nflverse/nflverse-data/releases/download";
 const now = new Date();
 const guessSeason = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
 const SEASON = Number(process.env.SEASON || guessSeason);
-const POSITIONS = ["QB", "RB", "WR", "TE"];
 const STARTER_RANK = { QB: 12, RB: 24, WR: 36, TE: 12 };
 const REC_MULT = [0, 0.5, 1]; // standard, half-PPR, PPR
 
-async function download(url) {
-  try {
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.text();
-  } catch (err) {
-    // Some environments only allow traffic through a proxy that curl knows about.
-    try {
-      return execFileSync("curl", ["-sfL", url], { encoding: "utf8", maxBuffer: 1 << 28 });
-    } catch {
-      throw new Error(`Could not download ${url}: ${err.message}`);
-    }
-  }
-}
-
-function parseCsv(text) {
-  const rows = [];
-  let row = [], field = "", quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quoted) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; } else quoted = false;
-      } else field += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
-    else if (c !== "\r") field += c;
-  }
-  if (field || row.length) { row.push(field); rows.push(row); }
-  const head = rows.shift();
-  return rows.filter((r) => r.length === head.length).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])));
-}
-
-const n = (v) => (v === "" || v === "NA" || v == null ? 0 : Number(v));
-const r2 = (v) => Math.round(v * 100) / 100;
-
 async function main() {
-  const [statsCsv, playersCsv] = await Promise.all([
+  const [statsCsv, playersCsv, snapsCsv, gamesCsv] = await Promise.all([
     download(`${BASE}/stats_player/stats_player_week_${SEASON}.csv`),
     download(`${BASE}/players/players.csv`),
+    download(`${BASE}/snap_counts/snap_counts_${SEASON}.csv`).catch(() => ""),
+    download(`${BASE}/schedules/games.csv`).catch(() => ""),
   ]);
-  const bio = new Map(parseCsv(playersCsv).map((p) => [p.gsis_id, p]));
+  const people = parseCsv(playersCsv);
+  const bio = new Map(people.map((p) => [p.gsis_id, p]));
+  // Snap counts use Pro Football Reference ids; map them to the stats ids.
+  const pfrToGsis = new Map(people.filter((p) => p.pfr_id && p.gsis_id).map((p) => [p.pfr_id, p.gsis_id]));
+  const snaps = new Map();
+  if (snapsCsv) {
+    for (const r of parseCsv(snapsCsv)) {
+      if (r.game_type !== "REG" || !POSITIONS.includes(r.position)) continue;
+      const id = pfrToGsis.get(r.pfr_player_id);
+      if (id) snaps.set(`${id}|${n(r.week)}`, Math.round(n(r.offense_pct) * 100));
+    }
+  }
   const rows = parseCsv(statsCsv).filter((r) => r.season_type === "REG" && POSITIONS.includes(r.position));
   if (!rows.length) throw new Error(`No regular-season rows for ${SEASON}`);
 
@@ -72,12 +46,36 @@ async function main() {
       fl: n(r.sack_fumbles_lost) + n(r.rushing_fumbles_lost) + n(r.receiving_fumbles_lost),
       tp: n(r.passing_2pt_conversions) + n(r.rushing_2pt_conversions) + n(r.receiving_2pt_conversions),
       st: n(r.special_teams_tds),
+      sn: snaps.get(`${r.player_id}|${n(r.week)}`) ?? null,
     };
     if (!byId.has(r.player_id)) byId.set(r.player_id, { id: r.player_id, name: r.player_display_name, pos: r.position, g: [] });
     byId.get(r.player_id).g.push(g);
   }
 
   const week = Math.max(...rows.map((r) => n(r.week)));
+
+  // Fantasy points each defense allowed to each position, per week: [standard points, receptions].
+  const teams = [...new Set(rows.map((r) => r.team))].sort();
+  const defense = Object.fromEntries(teams.map((t) => [t, Object.fromEntries(POSITIONS.map((p) => [p, Array(week).fill(null)]))]));
+  for (const r of rows) {
+    const cell = defense[r.opponent_team]?.[r.position];
+    if (!cell) continue;
+    const w = n(r.week) - 1;
+    const c = (cell[w] ||= [0, 0]);
+    c[0] = r2(c[0] + n(r.fantasy_points));
+    c[1] += n(r.receptions);
+  }
+
+  // Next week's opponents ("@" marks a road game); teams missing from the list are on bye.
+  let next = null;
+  if (gamesCsv) {
+    const games = parseCsv(gamesCsv).filter((g) => n(g.season) === SEASON && g.game_type === "REG" && n(g.week) === week + 1);
+    if (games.length) {
+      const opp = {};
+      for (const g of games) { opp[g.home_team] = g.away_team; opp[g.away_team] = `@${g.home_team}`; }
+      next = { week: week + 1, opp };
+    }
+  }
   let players = [...byId.values()].map((p) => {
     p.g.sort((a, b) => a.w - b.w);
     const b = bio.get(p.id) || {};
@@ -115,16 +113,16 @@ async function main() {
   players.sort((a, b) => a.name.localeCompare(b.name));
 
   mkdirSync(dirname(OUT), { recursive: true });
-  const next = { season: SEASON, week, updated: new Date().toISOString().slice(0, 10), line, players };
+  const out = { season: SEASON, week, updated: new Date().toISOString().slice(0, 10), line, defense, next, players };
   if (existsSync(OUT)) {
     // Leave the file untouched when the stats have not changed, so scheduled refreshes only commit real updates.
     const old = JSON.parse(readFileSync(OUT, "utf8"));
-    if (JSON.stringify({ ...old, updated: "" }) === JSON.stringify({ ...next, updated: "" })) {
+    if (JSON.stringify({ ...old, updated: "" }) === JSON.stringify({ ...out, updated: "" })) {
       console.log(`season.json is already current: ${SEASON} through week ${week}`);
       return;
     }
   }
-  writeFileSync(OUT, JSON.stringify(next));
+  writeFileSync(OUT, JSON.stringify(out));
   console.log(`season.json: ${SEASON} through week ${week}, ${players.length} players`);
 }
 

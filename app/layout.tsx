@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(host ? `https://${host}` : "http://localhost:3000"),
   title: { default: "Fantasy Pulse: NFL fantasy performances, visualized", template: "%s | Fantasy Pulse" },
   description: "See any NFL player's fantasy season as a heartbeat. Weekly scores, boom-or-bust weeks, where the points come from, and head-to-head comparisons.",
+  openGraph: { images: ["/api/og/week"] },
 };
 export const viewport: Viewport = { themeColor: "#0b1730" };
 

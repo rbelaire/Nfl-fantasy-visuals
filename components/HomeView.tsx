@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
 import type { Player } from "@/lib/types";
-import { POSITIONS, STARTER_RANK, fmt1, pts, total } from "@/lib/scoring";
+import { FMT_KEY, fmt1, pts, total } from "@/lib/scoring";
+import { weekSummary } from "@/lib/week";
+import { ShareBar } from "./ShareBar";
 import { team } from "@/lib/teams";
 import { useSeason } from "@/lib/useSeason";
 import { useFmt } from "./Scoring";
@@ -12,6 +14,7 @@ import { Jersey } from "./Jersey";
 const TOOLS = [
   { href: "/compare", name: "Compare two players", text: "A tale of the tape for start-or-sit calls and trade talks." },
   { href: "/tiers", name: "Tier skyline", text: "Every position as a city skyline, with the drop-offs between tiers marked." },
+  { href: "/defense", name: "Points allowed", text: "A heat map of what every defense gives up to each position, with next week's matchups." },
   { href: "/race", name: "Season race", text: "Watch the scoring leaders trade places week by week." },
   { href: "/guess", name: "Daily guess", text: "Name the mystery player from his heartbeat alone. A new one every day." },
 ];
@@ -32,18 +35,12 @@ function Row({ p, value, sub }: { p: Player; value: string; sub?: string }) {
 export function HomeView() {
   const { data, error } = useSeason();
   const fmt = useFmt();
-  const week = data?.week ?? 0;
-  const at = (p: Player) => p.g.find((g) => g.w === week);
+  const sum = data ? weekSummary(data, fmt) : null;
+  const week = sum?.week ?? 0;
+  const at = sum?.at ?? (() => undefined);
   const flex = data?.players.filter((p) => p.pos !== "QB") ?? [];
   const star = flex.length ? flex.reduce((a, b) => (total(b, fmt) > total(a, fmt) ? b : a)) : null;
-
-  const byPos = POSITIONS.map((pos) => ({
-    pos,
-    top: (data?.players ?? []).filter((p) => p.pos === pos && at(p)).sort((a, b) => pts(at(b)!, fmt) - pts(at(a)!, fmt)).slice(0, 3),
-  }));
-  const played = (data?.players ?? []).filter((p) => at(p));
-  const surprise = played.filter((p) => p.rk[fmt] > STARTER_RANK[p.pos]).sort((a, b) => pts(at(b)!, fmt) - pts(at(a)!, fmt))[0];
-  const bust = played.filter((p) => p.rk[fmt] <= (p.pos === "QB" || p.pos === "TE" ? 6 : 12)).sort((a, b) => pts(at(a)!, fmt) - pts(at(b)!, fmt))[0];
+  const { byPos = [], surprise, bust, buyLow = [], sellHigh = [] } = sum ?? {};
 
   return (
     <div className="space-y-12">
@@ -69,7 +66,10 @@ export function HomeView() {
 
       {data && (
         <section>
-          <h2 className="text-4xl">Week {week} at a glance</h2>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <h2 className="text-4xl">Week {week} at a glance</h2>
+            <ShareBar image={`/api/og/week?s=${FMT_KEY[fmt]}`} file={`fantasy-pulse-week-${week}.png`} label="Download poster" />
+          </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {byPos.map(({ pos, top }) => (
               <div key={pos} className="panel p-3">
@@ -92,6 +92,28 @@ export function HomeView() {
               </div>
             )}
           </div>
+        </section>
+      )}
+
+      {data && (buyLow.length > 0 || sellHigh.length > 0) && (
+        <section>
+          <h2 className="text-4xl">Workload watch</h2>
+          <p className="mt-2 max-w-prose text-mute">
+            Each player&apos;s last 3 games against what his targets and carries usually earn at his position. A big gap tends to close.
+          </p>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="panel p-3">
+              <h3 className="px-2 text-xl">Buy low</h3>
+              <p className="px-2 text-sm text-mute">Getting the work, not the points yet.</p>
+              <div className="mt-1">{buyLow.map(({ p, form }) => <Row key={p.id} p={p} value={`${fmt1(form.diff)}`} sub={`${fmt1(form.touches)} touches${form.snap != null ? `, ${Math.round(form.snap)}% of snaps` : ""}, ${fmt1(form.actual)} pts a game`} />)}</div>
+            </div>
+            <div className="panel p-3">
+              <h3 className="px-2 text-xl">Sell high</h3>
+              <p className="px-2 text-sm text-mute">Scoring well beyond the workload.</p>
+              <div className="mt-1">{sellHigh.map(({ p, form }) => <Row key={p.id} p={p} value={`+${fmt1(form.diff)}`} sub={`${fmt1(form.touches)} touches, ${fmt1(form.actual)} pts a game`} />)}</div>
+            </div>
+          </div>
+          <p className="mt-2 text-sm text-dim">The number is points per game above or below what that workload usually earns.</p>
         </section>
       )}
 

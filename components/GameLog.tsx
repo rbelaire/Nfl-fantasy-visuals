@@ -17,6 +17,7 @@ export function GameLog({ player, fmt }: { player: Player; fmt: Fmt }) {
             <th className="py-2 pr-3 font-medium">Opp</th>
             <th className="py-2 pr-3 text-right font-medium">Points</th>
             <th className="py-2 pr-3 text-right font-medium">Finish</th>
+            <th className="py-2 pr-3 text-right font-medium">Snaps</th>
             {cols.map((c) => <th key={c} className="py-2 pl-3 text-right font-medium">{c}</th>)}
           </tr>
         </thead>
@@ -32,6 +33,7 @@ export function GameLog({ player, fmt }: { player: Player; fmt: Fmt }) {
                 <td className="py-1.5 pr-3 text-mute">{g.opp}</td>
                 <td className="py-1.5 pr-3 text-right font-semibold">{fmt1(pts(g, fmt))}</td>
                 <td className="py-1.5 pr-3 text-right text-mute">{player.pos}{g.rk[fmt]}</td>
+                <td className="py-1.5 pr-3 text-right text-mute">{g.sn != null ? `${g.sn}%` : "–"}</td>
                 {cells.map((c, i) => <td key={i} className="py-1.5 pl-3 text-right">{c}</td>)}
               </tr>
             );

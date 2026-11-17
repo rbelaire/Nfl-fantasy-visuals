@@ -8,6 +8,10 @@ NFL fantasy performances, visualized. Look up any quarterback, running back, rec
 - **Compare** (`/compare?a=&b=`): a tale of the tape for any two players. The URL is shareable.
 - **Tier skyline** (`/tiers`): each position by points per game, split at the biggest drop-offs.
 - **Season race** (`/race`): animated running totals, week by week.
+- **Heartbeat twins** (on every player page): the five past seasons since 2012 whose opening games looked most like this one, drawn through to the end of the year.
+- **Points allowed** (`/defense`): a heat map of what every defense gives up to each position, week by week, with next week's opponents.
+- **Workload watch** (home page): buy-low and sell-high lists comparing each player's last 3 games with what his targets and carries usually earn. Snap share comes from nflverse snap counts.
+- **Share images**: every page has a downloadable image that also shows as the link preview (`/api/og/week`, `/api/og/compare`, `/api/og/tiers`, `/api/og/defense`, `/api/card/[id]`).
 - **Daily guess** (`/guess`): name the mystery player from his heartbeat. Same player for everyone each day.
 - **Scoring toggle**: Standard, Half-PPR or PPR, remembered per visitor.
 
@@ -18,6 +22,8 @@ Stats come from the open [nflverse](https://github.com/nflverse/nflverse-data) p
 - `npm run data` refreshes it by hand. `SEASON=2025 npm run data` builds another year.
 - It also runs before every build, and keeps the committed snapshot if the download fails.
 - `.github/workflows/refresh-data.yml` runs it daily and commits when the numbers change, which redeploys the site.
+
+`scripts/build-history.mjs` (`npm run history`) builds `public/data/history.json`, the past seasons used for heartbeat twins. Run it once each offseason to add the season that just ended.
 
 No database or API keys are needed.
 
